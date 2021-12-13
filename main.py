@@ -1,7 +1,8 @@
 import os
 import argparse
 from svgrasterize import *
-
+import numpy as np
+np.set_printoptions(formatter={'float': lambda x: "{0:0.3f}".format(x)})
 parser = argparse.ArgumentParser()
 parser.add_argument("svg", help="input SVG file")
 parser.add_argument("output", help="output PNG file")
@@ -30,6 +31,7 @@ if opts.transform:
 
 if opts.svg.endswith(".path"):
     path = Path.from_svg(open(opts.svg).read())
+    print(path,"\n")
     opts.bg = svg_color("white") if opts.bg is None else opts.bg
     opts.fg = svg_color("black") if opts.fg is None else opts.fg
     scene = Scene.fill(path, opts.fg)
@@ -42,6 +44,7 @@ else:
 if scene is None:
     sys.stderr.write("[error] nothing to render\n")
 else:
+    pass
     if opts.id is not None:
         size = None
         scene = ids.get(opts.id)
@@ -79,3 +82,14 @@ else:
     closefd = opts.output != "-"
     with open(filename, "wb", closefd=closefd) as file:
         output.write_png(file)
+
+
+
+#path.fill trả về vùng ảnh, offset của ảnh lớn.
+#hàm gộp là Layer.compose trả về vùng ảnh và offset, trả về ảnh lớn nhất.
+# canvas_compose cho biết cách mà blend tam giác vào ảnh.
+
+# blend của hàm canvas_merge_union là canvas_compose truyền vào tham số đầu tiên, Mặc định là COMPOSE_OVER
+# Path.mask trả về mass của tam giác. bên trong tam giác là 1, ngoài tam giác là 0
+# còn các cạnh của tam giác sẽ được là có giá trị trong khoảng từ 0 đến 1.
+# còn trả về offset nữa.

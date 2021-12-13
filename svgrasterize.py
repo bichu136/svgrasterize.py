@@ -186,11 +186,14 @@ class Layer(NamedTuple):
         for layer in layers:
             layer = layer.convert(pre_alpha=pre_alpha, linear_rgb=linear_rgb)
             images.append((layer.image, layer.offset))
+        #print([i[0].shape for i in images])
         blend = partial(canvas_compose, method)
         if method == COMPOSE_IN:
             result = canvas_merge_intersect(images, blend)
         elif method == COMPOSE_OVER:
+            start = time.time()
             result = canvas_merge_union(images, full=False, blend=blend)
+            print("render from image,offset pair take:",time.time()-start)
         else:
             result = canvas_merge_union(images, full=True, blend=blend)
         if result is None:
@@ -219,7 +222,6 @@ class Layer(NamedTuple):
 
             layer = self.convert(pre_alpha=False, linear_rgb=False)
             show(layer.image, format=format)
-            print()
         except ImportError:
             warnings.warn("to be able to show layer on terminal imshow is required")
 
@@ -363,7 +365,6 @@ def canvas_merge_union(layers, full=True, blend=canvas_compose_over):
                 effected[...] = image
             else:
                 effected[...] = blend(effected, image)
-
     return output, (min_x, min_y)
 
 
@@ -632,6 +633,7 @@ class Scene(tuple):
 
         elif type == RENDER_GROUP:
             layers, hulls = [], []
+            start = time.time()
             for child in args:
                 layer = child.render(transform, mask_only, viewport, linear_rgb)
                 if layer is None:
@@ -639,7 +641,6 @@ class Scene(tuple):
                 layer, hull = layer
                 layers.append(layer)
                 hulls.append(hull)
-
             group = Layer.compose(layers, COMPOSE_OVER, linear_rgb)
             if not group:
                 return None
@@ -673,6 +674,7 @@ class Scene(tuple):
             return result, hull
 
         elif type == RENDER_TRANSFORM:
+
             target, target_transfrom = args
             return target.render(transform @ target_transfrom, mask_only, viewport, linear_rgb)
 
@@ -890,6 +892,10 @@ class Path:
                 else:
                     raise ValueError(f"unsupported path type: `{cmd}`")
 
+        #def __call__(self, points: FNDArray) -> FNDArray:
+        #if len(points) == 0:
+            #return points
+        #return points @ self.m[:2, :2].T + self.m[:2, 2]
         # transform all curves into presentation coordinate system
         lines = transform(np.array(lines_defs, dtype=FLOAT))
         cubics = transform(np.array(cubics_defs, dtype=FLOAT))
@@ -930,7 +936,6 @@ class Path:
         else:
             raise ValueError(f"Invalid fill rule: {fill_rule}")
         mask[mask < 1e-6] = 0  # reound down to zero very small mask values
-
         output = Layer(mask[..., None], (min_x, min_y), pre_alpha=True, linear_rgb=True)
         return output, ConvexHull(lines)
 
@@ -941,10 +946,10 @@ class Path:
 
         # create a mask
         mask = self.mask(transform, fill_rule, viewport)
+
         if mask is None:
             return None
         mask, hull = mask
-
         # create background with specified paint
         if isinstance(paint, np.ndarray) and paint.shape == (4,):
             if not linear_rgb:
@@ -952,7 +957,6 @@ class Path:
                 paint = color_linear_to_srgb(paint)
                 paint = color_straight_to_pre_alpha(paint)
             output = Layer(mask.image * paint, mask.offset, pre_alpha=True, linear_rgb=linear_rgb)
-
         elif isinstance(paint, (GradLinear, GradRadial)):
             if paint.bbox_units:
                 user_tr = hull.bbox_transform(transform).invert
@@ -1034,7 +1038,6 @@ class Path:
         else:
             warnings.warn(f"fill method is not implemented: {paint}")
             return None
-
         return output, hull
 
     def stroke(self, width, linecap=None, linejoin=None) -> "Path":
@@ -3004,6 +3007,7 @@ def svg_scene(file, fg=None, width=None, fonts=None):
     root = tree.getroot()
     inherit = dict(color=np.array([0.0, 0.0, 0.0, 1.0]) if fg is None else fg)
     group = svg_scene_rec(root, inherit, True, width)
+    #print(group,file=open("group.txt","w"))
     if not group:
         return None, ids, size
     return Scene.group(group), ids, size
